@@ -2,7 +2,7 @@ import os
 import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes, MessageHandler, filters
-from telegram.helpers import escape_markdown # Імпортуємо функцію для екранування Markdown
+from telegram.helpers import escape_markdown 
 
 # Налаштування логування
 logging.basicConfig(
@@ -13,13 +13,10 @@ logger = logging.getLogger(__name__)
 # Отримання токена бота з змінної оточення
 TOKEN = os.getenv("BOT_TOKEN")
 
-# Словник для зберігання стану вибору користувача
-# Наприклад: user_data[user_id] = {'color': 'Кольорові', 'size': '37-41', 'quantity': 5, 'phone_number': '1234567890'}
 user_selections = {}
 
-# Цільові ID користувачів для відправки додаткового повідомлення
 TARGET_USER_ID = os.getenv("TARGET_USER_ID")
-TARGET_USER_ID_2 = os.getenv("TARGET_USER_ID_2") # Нова глобальна змінна для другого адміна
+TARGET_USER_ID_2 = os.getenv("TARGET_USER_ID_2")
 
 # --- Функції для відображення меню ---
 
@@ -36,7 +33,8 @@ async def send_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         "1\\. Вибрати колір\n"
         "2\\. Вибрати розмір\n"
         "3\\. Вказати кількість\n"
-        "4\\. Вказати номер телефону\n\n"
+        "4\\. Вибрати спосіб зв'язку\n" # Додано новий крок
+        "5\\. Вказати номер телефону\n\n"
         "Починаємо замовлення\\!"
     )
 
@@ -91,17 +89,16 @@ async def ask_for_quantity(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     )
     # Змінюємо стан користувача, щоб наступне текстове повідомлення було оброблено як кількість
     context.user_data['awaiting_quantity'] = True
-    context.user_data['awaiting_phone_number'] = False # Забезпечуємо, що прапор телефону вимкнений
+    context.user_data['awaiting_contact_method'] = False # Забезпечуємо, що прапори вимкнені
+    context.user_data['awaiting_phone_number'] = False 
     logger.info(f"Запит кількості відправлено користувачу {query.from_user.id}")
 
 async def handle_quantity_input(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Обробляє введену користувачем кількість."""
     logger.info(f"handle_quantity_input викликано для {update.effective_user.id}. awaiting_quantity: {context.user_data.get('awaiting_quantity')}")
 
-    # Важливо: ця перевірка повинна бути першою в обробнику
     if 'awaiting_quantity' not in context.user_data or not context.user_data['awaiting_quantity']:
         logger.warning(f"handle_quantity_input спрацював, але прапор awaiting_quantity не встановлений для {update.effective_user.id}. Ігноруємо повідомлення.")
-        # Якщо повідомлення не призначене для цього обробника, просто ігноруємо його
         return 
 
     try:
@@ -116,27 +113,68 @@ async def handle_quantity_input(update: Update, context: ContextTypes.DEFAULT_TY
         context.user_data['awaiting_quantity'] = False
         logger.info(f"Кількість '{quantity}' збережено. Прапор awaiting_quantity вимкнено.")
 
-        # Переходимо до запиту номера телефону
-        await ask_for_phone_number(update, context)
+        # ПЕРЕХОДИМО ДО НОВОГО КРОКУ: вибору способу зв'язку
+        await ask_for_contact_method(update, context)
 
     except ValueError:
         await update.message.reply_text("Будь ласка, введіть дійсне число для кількості пар.")
         logger.warning(f"Невірний ввід кількості від {update.effective_user.id}: {update.message.text}")
 
+# НОВИЙ КРОК: Запит способу зв'язку
+async def ask_for_contact_method(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Просить користувача вибрати спосіб зв'язку."""
+    keyboard = [
+        [InlineKeyboardButton("Телефонний дзвінок", callback_data="contact_method_Дзвінок")],
+        [InlineKeyboardButton("Переписка", callback_data="contact_method_Переписка")],
+        [InlineKeyboardButton("⬅️ Назад до кількості", callback_data="back_to_quantity_selection")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    if update.callback_query:
+        await update.callback_query.edit_message_text(
+            "Як вам зручніше, щоб з вами зв'язалися?",
+            reply_markup=reply_markup
+        )
+        await update.callback_query.answer()
+    else:
+        await update.message.reply_text(
+            "Як вам зручніше, щоб з вами зв'язалися?",
+            reply_markup=reply_markup
+        )
+    context.user_data['awaiting_contact_method'] = True
+    context.user_data['awaiting_phone_number'] = False # Забезпечуємо, що прапор телефону вимкнений
+    logger.info(f"Запит способу зв'язку відправлено користувачу {update.effective_user.id}")
+
+# НОВИЙ КРОК: Обробка вибору способу зв'язку
+async def handle_contact_method_selection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Обробляє вибраний користувачем спосіб зв'язку."""
+    query = update.callback_query
+    await query.answer()
+
+    contact_method = query.data.replace("contact_method_", "")
+    user_id = query.from_user.id
+    user_selections.setdefault(user_id, {})['contact_method'] = contact_method
+    logger.info(f"Користувач {user_id} вибрав спосіб зв'язку: {contact_method}")
+
+    context.user_data['awaiting_contact_method'] = False # Вимикаємо прапор очікування способу зв'язку
+
+    # Переходимо до запиту номера телефону
+    await ask_for_phone_number(update, context)
+
 
 async def ask_for_phone_number(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Просить користувача ввести номер телефону."""
-    keyboard = [[InlineKeyboardButton("⬅️ Назад до кількості", callback_data="back_to_quantity_selection")]]
+    # Кнопка "Назад" тепер веде до вибору способу зв'язку
+    keyboard = [[InlineKeyboardButton("⬅️ Назад до способу зв'язку", callback_data="back_to_contact_method_selection")]]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
-    # Визначаємо, чи це від callback_query (якщо перехід з іншого кроку) чи від message (після введення кількості)
     if update.callback_query:
         await update.callback_query.edit_message_text(
             "Будь ласка, вкажіть ваш номер телефону (до 20 символів):",
             reply_markup=reply_markup
         )
         await update.callback_query.answer()
-    else:
+    else: # Це може бути випадок після повернення з попереднього кроку, якщо update.message
         await update.message.reply_text(
             "Будь ласка, вкажіть ваш номер телефону (до 20 символів):",
             reply_markup=reply_markup
@@ -149,10 +187,8 @@ async def handle_phone_number_input(update: Update, context: ContextTypes.DEFAUL
     """Обробляє введений користувачем номер телефону та завершує замовлення."""
     logger.info(f"handle_phone_number_input викликано для {update.effective_user.id}. awaiting_phone_number: {context.user_data.get('awaiting_phone_number')}")
         
-    # Важливо: ця перевірка повинна бути першою в обробнику
     if 'awaiting_phone_number' not in context.user_data or not context.user_data['awaiting_phone_number']:
         logger.warning(f"handle_phone_number_input спрацював, але прапор awaiting_phone_number не встановлений для {update.effective_user.id}. Ігноруємо повідомлення.")
-        # Якщо повідомлення не призначене для цього обробника, просто ігноруємо його
         return 
 
     phone_number = update.message.text.strip()
@@ -160,21 +196,20 @@ async def handle_phone_number_input(update: Update, context: ContextTypes.DEFAUL
 
     logger.info(f"Отримано номер телефону від {user_id}: '{phone_number}', довжина: {len(phone_number)}")
 
-    # Перевірка довжини номера телефону
     if not phone_number or len(phone_number) > 20:
         await update.message.reply_text("Будь ласка, введіть ваш номер телефону (до 20 символів).")
         logger.warning(f"Невірний ввід номера телефону від {user_id}: '{phone_number}'. Повторний запит.")
         return
 
     user_selections[user_id]['phone_number'] = phone_number
-    context.user_data['awaiting_phone_number'] = False # Вимикаємо прапор очікування телефону
+    context.user_data['awaiting_phone_number'] = False
     logger.info(f"Номер телефону '{phone_number}' збережено. Прапор awaiting_phone_number вимкнено.")
 
     try:
-        # Формуємо підсумкове повідомлення для поточного користувача
         final_color = user_selections[user_id].get('color', 'не вибрано')
         final_size = user_selections[user_id].get('size', 'не вибрано')
         final_quantity = user_selections[user_id].get('quantity', 'не вказано')
+        final_contact_method = user_selections[user_id].get('contact_method', 'не вказано') # Додано
         final_phone_number = user_selections[user_id].get('phone_number', 'не вказано')
 
         summary_text = (
@@ -182,14 +217,13 @@ async def handle_phone_number_input(update: Update, context: ContextTypes.DEFAUL
             f"Колір: **{final_color}**\n"
             f"Розмір: **{final_size}**\n"
             f"Кількість пар: **{final_quantity}**\n"
+            f"Спосіб зв'язку: **{final_contact_method}**\n" # Додано
             f"Номер телефону: **{final_phone_number}**"
         )
         await update.message.reply_text(summary_text, parse_mode='Markdown')
-        logger.info(f"Підсумок покупки для {user_id}: Колір={final_color}, Розмір={final_size}, Кількість={final_quantity}, Телефон={final_phone_number}")
+        logger.info(f"Підсумок покупки для {user_id}: Колір={final_color}, Розмір={final_size}, Кількість={final_quantity}, Спосіб зв'язку={final_contact_method}, Телефон={final_phone_number}")
 
-        # --- Код для відправки повідомлення конкретним користувачам (адмінам) ---
         user_info = f"ID: {user_id}"
-        # Екрануємо потенційно небезпечні символи у даних користувача
         if update.effective_user.username:
             user_info += f", Логін: @{escape_markdown(update.effective_user.username, version=2)}"
         if update.effective_user.first_name:
@@ -198,17 +232,16 @@ async def handle_phone_number_input(update: Update, context: ContextTypes.DEFAUL
             user_info += f", Прізвище: {escape_markdown(update.effective_user.last_name, version=2)}"
 
         admin_summary_text = (
-            f"**Нове замовлення від користувача \\({user_info}\\):**\n" # Екрануємо дужки
-            f"Колір: **{escape_markdown(final_color, version=2)}**\n" # Екрануємо колір
-            f"Розмір: **{escape_markdown(final_size, version=2)}**\n"   # Екрануємо розмір
-            f"Кількість пар: **{escape_markdown(str(final_quantity), version=2)}**\n" # Екрануємо кількість
-            f"Номер телефону: **{escape_markdown(final_phone_number, version=2)}**" # Екрануємо номер телефону
+            f"**Нове замовлення від користувача \\({user_info}\\):**\n"
+            f"Колір: **{escape_markdown(final_color, version=2)}**\n"
+            f"Розмір: **{escape_markdown(final_size, version=2)}**\n"
+            f"Кількість пар: **{escape_markdown(str(final_quantity), version=2)}**\n"
+            f"Спосіб зв'язку: **{escape_markdown(final_contact_method, version=2)}**\n" # Додано
+            f"Номер телефону: **{escape_markdown(final_phone_number, version=2)}**"
         )
 
-        # Відправка першому адміну
         if TARGET_USER_ID:
             try:
-                # Важливо: користувач TARGET_USER_ID мав попередньо запустити бота.
                 await context.bot.send_message(chat_id=TARGET_USER_ID, text=admin_summary_text, parse_mode='MarkdownV2')
                 logger.info(f"Повідомлення про замовлення відправлено користувачу {TARGET_USER_ID}")
             except Exception as e:
@@ -216,10 +249,8 @@ async def handle_phone_number_input(update: Update, context: ContextTypes.DEFAUL
         else:
             logger.warning("TARGET_USER_ID не встановлено. Повідомлення першому адміну не відправлено.")
 
-        # Відправка другому адміну
         if TARGET_USER_ID_2:
             try:
-                # Важливо: користувач TARGET_USER_ID_2 мав попередньо запустити бота.
                 await context.bot.send_message(chat_id=TARGET_USER_ID_2, text=admin_summary_text, parse_mode='MarkdownV2')
                 logger.info(f"Повідомлення про замовлення відправлено користувачу {TARGET_USER_ID_2}")
             except Exception as e:
@@ -227,14 +258,10 @@ async def handle_phone_number_input(update: Update, context: ContextTypes.DEFAUL
         else:
             logger.warning("TARGET_USER_ID_2 не встановлено. Повідомлення другому адміну не відправлено.")
 
-        # --- Кінець доданого коду ---
-
-        # Очищаємо вибір користувача після завершення покупки
         if user_id in user_selections:
             del user_selections[user_id]
         logger.info(f"Вибір користувача {user_id} очищено.")
         
-        # Після успішного завершення, можна запропонувати знову почати
         keyboard = [[InlineKeyboardButton("Почати спочатку", callback_data="start_over")]]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await update.message.reply_text("Дякуємо за покупку!", reply_markup=reply_markup)
@@ -248,22 +275,20 @@ async def handle_phone_number_input(update: Update, context: ContextTypes.DEFAUL
 # --- Обробники кнопок "Назад" ---
 
 async def back_to_color_selection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Повертає до вибору кольору."""
-    # Очищаємо всі поточні вибори користувача, щоб почати з чистого аркуша
     user_id = update.effective_user.id
     if user_id in user_selections:
         del user_selections[user_id]
     context.user_data['awaiting_quantity'] = False
+    context.user_data['awaiting_contact_method'] = False # Очищуємо новий прапор
     context.user_data['awaiting_phone_number'] = False
-    await send_main_menu(update, context) # Викликаємо функцію, яка показує головне меню
+    await send_main_menu(update, context)
     logger.info(f"Користувач {update.effective_user.id} повернувся до вибору кольору.")
 
 async def back_to_size_selection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Повертає до вибору розміру."""
     user_id = update.effective_user.id
     current_color = user_selections[user_id]['color'] if user_id in user_selections and 'color' in user_selections[user_id] else None
 
-    if current_color: # Якщо колір був обраний, показуємо меню розмірів для цього кольору
+    if current_color:
         keyboard = [
             [InlineKeyboardButton("1) 29-33", callback_data="select_size_29-33")],
             [InlineKeyboardButton("2) 34-36", callback_data="select_size_34-36")],
@@ -275,16 +300,15 @@ async def back_to_size_selection(update: Update, context: ContextTypes.DEFAULT_T
         query = update.callback_query
         await query.answer()
         await query.edit_message_text("Виберіть розмір:", reply_markup=reply_markup)
-        context.user_data['awaiting_quantity'] = False # Вимикаємо прапор кількості
-        context.user_data['awaiting_phone_number'] = False # Вимикаємо прапор телефону
+        context.user_data['awaiting_quantity'] = False
+        context.user_data['awaiting_contact_method'] = False # Очищуємо новий прапор
+        context.user_data['awaiting_phone_number'] = False
 
         logger.info(f"Користувач {user_id} повернувся до вибору розміру.")
     else:
-        # Якщо колір не збережений (наприклад, бот перезапустився), повертаємо до головного меню
         await send_main_menu(update, context)
 
 async def back_to_quantity_selection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Повертає до запиту кількості."""
     user_id = update.effective_user.id
     current_color = user_selections[user_id].get('color')
     current_size = user_selections[user_id].get('size')
@@ -299,12 +323,30 @@ async def back_to_quantity_selection(update: Update, context: ContextTypes.DEFAU
             reply_markup=reply_markup
         )
         context.user_data['awaiting_quantity'] = True
-        context.user_data['awaiting_phone_number'] = False # Забезпечуємо, що прапор телефону вимкнений
+        context.user_data['awaiting_contact_method'] = False # Очищуємо новий прапор
+        context.user_data['awaiting_phone_number'] = False
 
         logger.info(f"Користувач {user_id} повернувся до запиту кількості.")
     else:
-        # Якщо дані не збереглися, повертаємося до початку
         await send_main_menu(update, context)
+
+# НОВИЙ Обробник "Назад" для способу зв'язку
+async def back_to_contact_method_selection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    user_id = update.effective_user.id
+    current_quantity = user_selections[user_id].get('quantity')
+
+    if current_quantity:
+        # Відновлюємо прапор, якщо потрібно
+        context.user_data['awaiting_contact_method'] = True
+        context.user_data['awaiting_phone_number'] = False
+        context.user_data['awaiting_quantity'] = False # Забезпечуємо, що прапор кількості вимкнений
+
+        # Викликаємо функцію, яка показує меню вибору способу зв'язку
+        await ask_for_contact_method(update, context)
+        logger.info(f"Користувач {user_id} повернувся до вибору способу зв'язку.")
+    else:
+        # Якщо кількість не збережена, повертаємося до початку або до запиту кількості
+        await send_main_menu(update, context) # Або ask_for_quantity(update, context) якщо хочете більш точний бек
 
 
 # --- Функція запуску бота ---
@@ -317,43 +359,34 @@ def main() -> None:
 
     application = ApplicationBuilder().token(TOKEN).build()
 
-    # Обробник команди /start
     application.add_handler(CommandHandler("start", send_main_menu))
-    application.add_handler(CallbackQueryHandler(send_main_menu, pattern="^start_over$")) # Для кнопки "Почати спочатку"
+    application.add_handler(CallbackQueryHandler(send_main_menu, pattern="^start_over$"))
 
-    # Обробники вибору кольору
     application.add_handler(CallbackQueryHandler(send_size_menu, pattern="^select_color_"))
-
-    # Обробники вибору розміру
     application.add_handler(CallbackQueryHandler(ask_for_quantity, pattern="^select_size_"))
 
-    # Обробники текстових повідомлень (їхній порядок важливий!)
-    # Ми покладаємося на внутрішню логіку обробників (if 'awaiting_...' in context.user_data)
-    # щоб вирішити, чи потрібно обробляти повідомлення.
-    # ОБРОБНИК НОМЕРА ТЕЛЕФОНУ ПОВИНЕН ЙТИ ПЕРЕД ОБРОБНИКОМ КІЛЬКОСТІ АБО мати більш специфічні фільтри,
-    # інакше він може перехопити ввід кількості, якщо обидва очікують вводу.
-    # Але оскільки ми додаємо internal check в кожний handler, їхній порядок не такий критичний,
-    # головне, щоб filter.TEXT & ~filter.COMMAND завжди спрацьовував, а вже handler приймав рішення.
-
-    # Обробник текстових повідомлень для введення номера телефону
-    # Додано фільтр ChatType.PRIVATE, щоб бот відповідав лише в приватних чатах
+    # НОВІ ОБРОБНИКИ ДЛЯ СПОСОБУ ЗВ'ЯЗКУ
+    application.add_handler(CallbackQueryHandler(handle_contact_method_selection, pattern="^contact_method_"))
+    
+    # Важливо: Обробник для номера телефону повинен бути зареєстрований перед обробником кількості,
+    # оскільки обидва реагують на filters.TEXT. Це забезпечить, що коли ми чекаємо номер телефону,
+    # саме handle_phone_number_input буде розглянутий першим.
     application.add_handler(MessageHandler(
         filters.TEXT & ~filters.COMMAND & filters.ChatType.PRIVATE,
         handle_phone_number_input
     ))
-
-    # Обробник текстових повідомлень для введення кількості
-    # Додано фільтр ChatType.PRIVATE
+    
     application.add_handler(MessageHandler(
         filters.TEXT & ~filters.COMMAND & filters.ChatType.PRIVATE,
         handle_quantity_input
     ))
 
 
-    # Обробники кнопок "Назад"
     application.add_handler(CallbackQueryHandler(back_to_color_selection, pattern="^back_to_color_selection$"))
     application.add_handler(CallbackQueryHandler(back_to_size_selection, pattern="^back_to_size_selection$"))
     application.add_handler(CallbackQueryHandler(back_to_quantity_selection, pattern="^back_to_quantity_selection$"))
+    # НОВИЙ ОБРОБНИК КНОПКИ "НАЗАД" ДЛЯ СПОСОБУ ЗВ'ЯЗКУ
+    application.add_handler(CallbackQueryHandler(back_to_contact_method_selection, pattern="^back_to_contact_method_selection$"))
 
 
     print("Бот запущено в режимі Polling...")
