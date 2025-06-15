@@ -124,7 +124,7 @@ async def handle_quantity_input(update: Update, context: ContextTypes.DEFAULT_TY
             user_info += f", Прізвище: {escape_markdown(update.effective_user.last_name, version=2)}"
 
         admin_summary_text = (
-            f"**Нове замовлення від користувача ({user_info}):**\n"
+            f"**Нове замовлення від користувача \\({user_info}\\):**\n" # Екрануємо дужки
             f"Колір: **{escape_markdown(final_color, version=2)}**\n" # Екрануємо колір
             f"Розмір: **{escape_markdown(final_size, version=2)}**\n"   # Екрануємо розмір
             f"Кількість пар: **{escape_markdown(str(final_quantity), version=2)}**" # Екрануємо кількість
