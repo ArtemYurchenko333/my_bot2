@@ -98,9 +98,11 @@ async def handle_quantity_input(update: Update, context: ContextTypes.DEFAULT_TY
     """Обробляє введену користувачем кількість."""
     logger.info(f"handle_quantity_input викликано для {update.effective_user.id}. awaiting_quantity: {context.user_data.get('awaiting_quantity')}")
 
+    # Важливо: ця перевірка повинна бути першою в обробнику
     if 'awaiting_quantity' not in context.user_data or not context.user_data['awaiting_quantity']:
-        logger.warning(f"handle_quantity_input спрацював, але прапор awaiting_quantity не встановлений для {update.effective_user.id}")
-        return # Ігноруємо, якщо не очікували кількість
+        logger.warning(f"handle_quantity_input спрацював, але прапор awaiting_quantity не встановлений для {update.effective_user.id}. Ігноруємо повідомлення.")
+        # Якщо повідомлення не призначене для цього обробника, просто ігноруємо його
+        return 
 
     try:
         quantity = int(update.message.text)
@@ -147,9 +149,11 @@ async def handle_phone_number_input(update: Update, context: ContextTypes.DEFAUL
     """Обробляє введений користувачем номер телефону та завершує замовлення."""
     logger.info(f"handle_phone_number_input викликано для {update.effective_user.id}. awaiting_phone_number: {context.user_data.get('awaiting_phone_number')}")
         
+    # Важливо: ця перевірка повинна бути першою в обробнику
     if 'awaiting_phone_number' not in context.user_data or not context.user_data['awaiting_phone_number']:
-        logger.warning(f"handle_phone_number_input спрацював, але прапор awaiting_phone_number не встановлений для {update.effective_user.id}")
-        return # Ігноруємо, якщо не очікували номер телефону
+        logger.warning(f"handle_phone_number_input спрацював, але прапор awaiting_phone_number не встановлений для {update.effective_user.id}. Ігноруємо повідомлення.")
+        # Якщо повідомлення не призначене для цього обробника, просто ігноруємо його
+        return 
 
     phone_number = update.message.text.strip()
     user_id = update.effective_user.id
@@ -323,20 +327,26 @@ def main() -> None:
     # Обробники вибору розміру
     application.add_handler(CallbackQueryHandler(ask_for_quantity, pattern="^select_size_"))
 
-    # Обробник текстових повідомлень для введення кількості
-    # Важливо: використовуємо filters.create() для обгортки лямбда-функції
-    application.add_handler(MessageHandler(
-        filters.TEXT & ~filters.COMMAND & filters.ChatType.PRIVATE & 
-        filters.create(lambda _, context: context.user_data.get('awaiting_quantity', False)), 
-        handle_quantity_input
-    ))
+    # Обробники текстових повідомлень (їхній порядок важливий!)
+    # Ми покладаємося на внутрішню логіку обробників (if 'awaiting_...' in context.user_data)
+    # щоб вирішити, чи потрібно обробляти повідомлення.
+    # ОБРОБНИК НОМЕРА ТЕЛЕФОНУ ПОВИНЕН ЙТИ ПЕРЕД ОБРОБНИКОМ КІЛЬКОСТІ АБО мати більш специфічні фільтри,
+    # інакше він може перехопити ввід кількості, якщо обидва очікують вводу.
+    # Але оскільки ми додаємо internal check в кожний handler, їхній порядок не такий критичний,
+    # головне, щоб filter.TEXT & ~filter.COMMAND завжди спрацьовував, а вже handler приймав рішення.
 
     # Обробник текстових повідомлень для введення номера телефону
-    # Важливо: використовуємо filters.create() для обгортки лямбда-функції
+    # Додано фільтр ChatType.PRIVATE, щоб бот відповідав лише в приватних чатах
     application.add_handler(MessageHandler(
-        filters.TEXT & ~filters.COMMAND & filters.ChatType.PRIVATE & 
-        filters.create(lambda _, context: context.user_data.get('awaiting_phone_number', False)), 
+        filters.TEXT & ~filters.COMMAND & filters.ChatType.PRIVATE,
         handle_phone_number_input
+    ))
+
+    # Обробник текстових повідомлень для введення кількості
+    # Додано фільтр ChatType.PRIVATE
+    application.add_handler(MessageHandler(
+        filters.TEXT & ~filters.COMMAND & filters.ChatType.PRIVATE,
+        handle_quantity_input
     ))
 
 
