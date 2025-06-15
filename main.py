@@ -96,7 +96,10 @@ async def ask_for_quantity(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
 async def handle_quantity_input(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Обробляє введену користувачем кількість."""
+    logger.info(f"handle_quantity_input викликано для {update.effective_user.id}. awaiting_quantity: {context.user_data.get('awaiting_quantity')}")
+
     if 'awaiting_quantity' not in context.user_data or not context.user_data['awaiting_quantity']:
+        logger.warning(f"handle_quantity_input спрацював, але прапор awaiting_quantity не встановлений для {update.effective_user.id}")
         return # Ігноруємо, якщо не очікували кількість
 
     try:
@@ -109,6 +112,7 @@ async def handle_quantity_input(update: Update, context: ContextTypes.DEFAULT_TY
         
         # Видаляємо прапор очікування кількості
         context.user_data['awaiting_quantity'] = False
+        logger.info(f"Кількість '{quantity}' збережено. Прапор awaiting_quantity вимкнено.")
 
         # Переходимо до запиту номера телефону
         await ask_for_phone_number(update, context)
@@ -141,87 +145,100 @@ async def ask_for_phone_number(update: Update, context: ContextTypes.DEFAULT_TYP
 
 async def handle_phone_number_input(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Обробляє введений користувачем номер телефону та завершує замовлення."""
+    logger.info(f"handle_phone_number_input викликано для {update.effective_user.id}. awaiting_phone_number: {context.user_data.get('awaiting_phone_number')}")
+        
     if 'awaiting_phone_number' not in context.user_data or not context.user_data['awaiting_phone_number']:
+        logger.warning(f"handle_phone_number_input спрацював, але прапор awaiting_phone_number не встановлений для {update.effective_user.id}")
         return # Ігноруємо, якщо не очікували номер телефону
 
     phone_number = update.message.text.strip()
     user_id = update.effective_user.id
 
+    logger.info(f"Отримано номер телефону від {user_id}: '{phone_number}', довжина: {len(phone_number)}")
+
     # Перевірка довжини номера телефону
     if not phone_number or len(phone_number) > 20:
         await update.message.reply_text("Будь ласка, введіть ваш номер телефону (до 20 символів).")
-        logger.warning(f"Невірний ввід номера телефону від {user_id}: {phone_number}")
+        logger.warning(f"Невірний ввід номера телефону від {user_id}: '{phone_number}'. Повторний запит.")
         return
 
     user_selections[user_id]['phone_number'] = phone_number
     context.user_data['awaiting_phone_number'] = False # Вимикаємо прапор очікування телефону
+    logger.info(f"Номер телефону '{phone_number}' збережено. Прапор awaiting_phone_number вимкнено.")
 
-    # Формуємо підсумкове повідомлення для поточного користувача
-    final_color = user_selections[user_id].get('color', 'не вибрано')
-    final_size = user_selections[user_id].get('size', 'не вибрано')
-    final_quantity = user_selections[user_id].get('quantity', 'не вказано')
-    final_phone_number = user_selections[user_id].get('phone_number', 'не вказано')
+    try:
+        # Формуємо підсумкове повідомлення для поточного користувача
+        final_color = user_selections[user_id].get('color', 'не вибрано')
+        final_size = user_selections[user_id].get('size', 'не вибрано')
+        final_quantity = user_selections[user_id].get('quantity', 'не вказано')
+        final_phone_number = user_selections[user_id].get('phone_number', 'не вказано')
 
-    summary_text = (
-        f"**Ви купуєте:**\n"
-        f"Колір: **{final_color}**\n"
-        f"Розмір: **{final_size}**\n"
-        f"Кількість пар: **{final_quantity}**\n"
-        f"Номер телефону: **{final_phone_number}**"
-    )
-    await update.message.reply_text(summary_text, parse_mode='Markdown')
-    logger.info(f"Підсумок покупки для {user_id}: Колір={final_color}, Розмір={final_size}, Кількість={final_quantity}, Телефон={final_phone_number}")
+        summary_text = (
+            f"**Ви купуєте:**\n"
+            f"Колір: **{final_color}**\n"
+            f"Розмір: **{final_size}**\n"
+            f"Кількість пар: **{final_quantity}**\n"
+            f"Номер телефону: **{final_phone_number}**"
+        )
+        await update.message.reply_text(summary_text, parse_mode='Markdown')
+        logger.info(f"Підсумок покупки для {user_id}: Колір={final_color}, Розмір={final_size}, Кількість={final_quantity}, Телефон={final_phone_number}")
 
-    # --- Код для відправки повідомлення конкретним користувачам (адмінам) ---
-    user_info = f"ID: {user_id}"
-    # Екрануємо потенційно небезпечні символи у даних користувача
-    if update.effective_user.username:
-        user_info += f", Логін: @{escape_markdown(update.effective_user.username, version=2)}"
-    if update.effective_user.first_name:
-        user_info += f", Ім'я: {escape_markdown(update.effective_user.first_name, version=2)}"
-    if update.effective_user.last_name:
-        user_info += f", Прізвище: {escape_markdown(update.effective_user.last_name, version=2)}"
+        # --- Код для відправки повідомлення конкретним користувачам (адмінам) ---
+        user_info = f"ID: {user_id}"
+        # Екрануємо потенційно небезпечні символи у даних користувача
+        if update.effective_user.username:
+            user_info += f", Логін: @{escape_markdown(update.effective_user.username, version=2)}"
+        if update.effective_user.first_name:
+            user_info += f", Ім'я: {escape_markdown(update.effective_user.first_name, version=2)}"
+        if update.effective_user.last_name:
+            user_info += f", Прізвище: {escape_markdown(update.effective_user.last_name, version=2)}"
 
-    admin_summary_text = (
-        f"**Нове замовлення від користувача \\({user_info}\\):**\n" # Екрануємо дужки
-        f"Колір: **{escape_markdown(final_color, version=2)}**\n" # Екрануємо колір
-        f"Розмір: **{escape_markdown(final_size, version=2)}**\n"   # Екрануємо розмір
-        f"Кількість пар: **{escape_markdown(str(final_quantity), version=2)}**\n" # Екрануємо кількість
-        f"Номер телефону: **{escape_markdown(final_phone_number, version=2)}**" # Екрануємо номер телефону
-    )
+        admin_summary_text = (
+            f"**Нове замовлення від користувача \\({user_info}\\):**\n" # Екрануємо дужки
+            f"Колір: **{escape_markdown(final_color, version=2)}**\n" # Екрануємо колір
+            f"Розмір: **{escape_markdown(final_size, version=2)}**\n"   # Екрануємо розмір
+            f"Кількість пар: **{escape_markdown(str(final_quantity), version=2)}**\n" # Екрануємо кількість
+            f"Номер телефону: **{escape_markdown(final_phone_number, version=2)}**" # Екрануємо номер телефону
+        )
 
-    # Відправка першому адміну
-    if TARGET_USER_ID:
-        try:
-            # Важливо: користувач TARGET_USER_ID мав попередньо запустити бота.
-            await context.bot.send_message(chat_id=TARGET_USER_ID, text=admin_summary_text, parse_mode='MarkdownV2')
-            logger.info(f"Повідомлення про замовлення відправлено користувачу {TARGET_USER_ID}")
-        except Exception as e:
-            logger.error(f"Не вдалося відправити повідомлення користувачу {TARGET_USER_ID}: {e}")
-    else:
-        logger.warning("TARGET_USER_ID не встановлено. Повідомлення першому адміну не відправлено.")
+        # Відправка першому адміну
+        if TARGET_USER_ID:
+            try:
+                # Важливо: користувач TARGET_USER_ID мав попередньо запустити бота.
+                await context.bot.send_message(chat_id=TARGET_USER_ID, text=admin_summary_text, parse_mode='MarkdownV2')
+                logger.info(f"Повідомлення про замовлення відправлено користувачу {TARGET_USER_ID}")
+            except Exception as e:
+                logger.error(f"Не вдалося відправити повідомлення користувачу {TARGET_USER_ID}: {e}")
+        else:
+            logger.warning("TARGET_USER_ID не встановлено. Повідомлення першому адміну не відправлено.")
 
-    # Відправка другому адміну
-    if TARGET_USER_ID_2:
-        try:
-            # Важливо: користувач TARGET_USER_ID_2 мав попередньо запустити бота.
-            await context.bot.send_message(chat_id=TARGET_USER_ID_2, text=admin_summary_text, parse_mode='MarkdownV2')
-            logger.info(f"Повідомлення про замовлення відправлено користувачу {TARGET_USER_ID_2}")
-        except Exception as e:
-            logger.error(f"Не вдалося відправити повідомлення користувачу {TARGET_USER_ID_2}: {e}")
-    else:
-        logger.warning("TARGET_USER_ID_2 не встановлено. Повідомлення другому адміну не відправлено.")
+        # Відправка другому адміну
+        if TARGET_USER_ID_2:
+            try:
+                # Важливо: користувач TARGET_USER_ID_2 мав попередньо запустити бота.
+                await context.bot.send_message(chat_id=TARGET_USER_ID_2, text=admin_summary_text, parse_mode='MarkdownV2')
+                logger.info(f"Повідомлення про замовлення відправлено користувачу {TARGET_USER_ID_2}")
+            except Exception as e:
+                logger.error(f"Не вдалося відправити повідомлення користувачу {TARGET_USER_ID_2}: {e}")
+        else:
+            logger.warning("TARGET_USER_ID_2 не встановлено. Повідомлення другому адміну не відправлено.")
 
-    # --- Кінець доданого коду ---
+        # --- Кінець доданого коду ---
 
-    # Очищаємо вибір користувача після завершення покупки
-    if user_id in user_selections:
-        del user_selections[user_id]
-    
-    # Після успішного завершення, можна запропонувати знову почати
-    keyboard = [[InlineKeyboardButton("Почати спочатку", callback_data="start_over")]]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text("Дякуємо за покупку!", reply_markup=reply_markup)
+        # Очищаємо вибір користувача після завершення покупки
+        if user_id in user_selections:
+            del user_selections[user_id]
+        logger.info(f"Вибір користувача {user_id} очищено.")
+        
+        # Після успішного завершення, можна запропонувати знову почати
+        keyboard = [[InlineKeyboardButton("Почати спочатку", callback_data="start_over")]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await update.message.reply_text("Дякуємо за покупку!", reply_markup=reply_markup)
+        logger.info(f"Заключне повідомлення відправлено користувачу {user_id}.")
+
+    except Exception as e:
+        logger.error(f"Невідома помилка під час обробки номера телефону або завершення замовлення для {user_id}: {e}", exc_info=True)
+        await update.message.reply_text("Виникла помилка при обробці вашого замовлення. Спробуйте почати спочатку.")
 
 
 # --- Обробники кнопок "Назад" ---
@@ -307,11 +324,20 @@ def main() -> None:
     application.add_handler(CallbackQueryHandler(ask_for_quantity, pattern="^select_size_"))
 
     # Обробник текстових повідомлень для введення кількості
-    # Важливо: цей обробник повинен бути перед загальним, якщо такий є.
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND & filters.ChatType.PRIVATE & filters.User.private, handle_quantity_input))
+    # Важливо: використовуємо лямбда-фільтр для активації лише коли очікуємо кількість
+    application.add_handler(MessageHandler(
+        filters.TEXT & ~filters.COMMAND & filters.ChatType.PRIVATE & 
+        (lambda msg, ctx: ctx.user_data.get('awaiting_quantity', False)), 
+        handle_quantity_input
+    ))
 
     # Обробник текстових повідомлень для введення номера телефону
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND & filters.ChatType.PRIVATE & filters.User.private, handle_phone_number_input))
+    # Важливо: використовуємо лямбда-фільтр для активації лише коли очікуємо номер телефону
+    application.add_handler(MessageHandler(
+        filters.TEXT & ~filters.COMMAND & filters.ChatType.PRIVATE & 
+        (lambda msg, ctx: ctx.user_data.get('awaiting_phone_number', False)), 
+        handle_phone_number_input
+    ))
 
 
     # Обробники кнопок "Назад"
