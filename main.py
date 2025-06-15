@@ -2,6 +2,7 @@ import os
 import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes, MessageHandler, filters
+from telegram.helpers import escape_markdown # Імпортуємо функцію для екранування Markdown
 
 # Налаштування логування
 logging.basicConfig(
@@ -114,34 +115,37 @@ async def handle_quantity_input(update: Update, context: ContextTypes.DEFAULT_TY
 
         # --- Доданий код для відправки повідомлення конкретним користувачам (адмінам) ---
         user_info = f"ID: {user_id}"
+        # Екрануємо потенційно небезпечні символи у даних користувача
         if update.effective_user.username:
-            user_info += f", Логін: @{update.effective_user.username}"
+            user_info += f", Логін: @{escape_markdown(update.effective_user.username, version=2)}"
         if update.effective_user.first_name:
-            user_info += f", Ім'я: {update.effective_user.first_name}"
+            user_info += f", Ім'я: {escape_markdown(update.effective_user.first_name, version=2)}"
         if update.effective_user.last_name:
-            user_info += f", Прізвище: {update.effective_user.last_name}"
+            user_info += f", Прізвище: {escape_markdown(update.effective_user.last_name, version=2)}"
 
         admin_summary_text = (
             f"**Нове замовлення від користувача ({user_info}):**\n"
-            f"Колір: **{final_color}**\n"
-            f"Розмір: **{final_size}**\n"
-            f"Кількість пар: **{final_quantity}**"
+            f"Колір: **{escape_markdown(final_color, version=2)}**\n" # Екрануємо колір
+            f"Розмір: **{escape_markdown(final_size, version=2)}**\n"   # Екрануємо розмір
+            f"Кількість пар: **{escape_markdown(str(final_quantity), version=2)}**" # Екрануємо кількість
         )
 
         # Відправка першому адміну
         if TARGET_USER_ID:
             try:
-                await context.bot.send_message(chat_id=TARGET_USER_ID, text=admin_summary_text, parse_mode='Markdown')
+                # Важливо: користувач TARGET_USER_ID мав попередньо запустити бота.
+                await context.bot.send_message(chat_id=TARGET_USER_ID, text=admin_summary_text, parse_mode='MarkdownV2')
                 logger.info(f"Повідомлення про замовлення відправлено користувачу {TARGET_USER_ID}")
             except Exception as e:
                 logger.error(f"Не вдалося відправити повідомлення користувачу {TARGET_USER_ID}: {e}")
         else:
-            logger.warning("TARGET_USER_ID не встановлено. Повідомлення адміну не відправлено.")
+            logger.warning("TARGET_USER_ID не встановлено. Повідомлення першому адміну не відправлено.")
 
         # Відправка другому адміну
         if TARGET_USER_ID_2:
             try:
-                await context.bot.send_message(chat_id=TARGET_USER_ID_2, text=admin_summary_text, parse_mode='Markdown')
+                # Важливо: користувач TARGET_USER_ID_2 мав попередньо запустити бота.
+                await context.bot.send_message(chat_id=TARGET_USER_ID_2, text=admin_summary_text, parse_mode='MarkdownV2')
                 logger.info(f"Повідомлення про замовлення відправлено користувачу {TARGET_USER_ID_2}")
             except Exception as e:
                 logger.error(f"Не вдалося відправити повідомлення користувачу {TARGET_USER_ID_2}: {e}")
