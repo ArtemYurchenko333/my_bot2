@@ -4,8 +4,13 @@ services:
     env: python
     plan: free
     buildCommand: "pip install -r requirements.txt"
-    startCommand: "python main.py"
+    # ЗМІНЕНО ТУТ: Явно активуємо віртуальне середовище
+    startCommand: "sh -c '. /opt/venv/bin/activate && python main.py'"
     envVars:
       - key: BOT_TOKEN
-        value: твой_токен_от_BotFather
+        value: твой_токен_от_BotFather # Переконайтеся, що тут ваш реальний токен
+      - key: TARGET_USER_ID
+        value: ВАШ_АДМІН_ID_1 # Введіть ID першого адміна
+      - key: TARGET_USER_ID_2
+        value: ВАШ_АДМІН_ID_2 # Введіть ID другого адміна
     runtime: python3.10
