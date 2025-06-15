@@ -324,18 +324,18 @@ def main() -> None:
     application.add_handler(CallbackQueryHandler(ask_for_quantity, pattern="^select_size_"))
 
     # Обробник текстових повідомлень для введення кількості
-    # Важливо: використовуємо лямбда-фільтр для активації лише коли очікуємо кількість
+    # Важливо: використовуємо filters.create() для обгортки лямбда-функції
     application.add_handler(MessageHandler(
         filters.TEXT & ~filters.COMMAND & filters.ChatType.PRIVATE & 
-        (lambda msg, ctx: ctx.user_data.get('awaiting_quantity', False)), 
+        filters.create(lambda _, context: context.user_data.get('awaiting_quantity', False)), 
         handle_quantity_input
     ))
 
     # Обробник текстових повідомлень для введення номера телефону
-    # Важливо: використовуємо лямбда-фільтр для активації лише коли очікуємо номер телефону
+    # Важливо: використовуємо filters.create() для обгортки лямбда-функції
     application.add_handler(MessageHandler(
         filters.TEXT & ~filters.COMMAND & filters.ChatType.PRIVATE & 
-        (lambda msg, ctx: ctx.user_data.get('awaiting_phone_number', False)), 
+        filters.create(lambda _, context: context.user_data.get('awaiting_phone_number', False)), 
         handle_phone_number_input
     ))
 
