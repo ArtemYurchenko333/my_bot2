@@ -11,7 +11,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Отримання токена бота з змінної оточення
-TOKEN = os.getenv("BOT_TOKEN")
+TOKEN = os.getenv("BOT_TOKEN") 
 
 # Словник для зберігання стану вибору користувача
 # Наприклад: user_data[user_id] = {'color': 'Кольорові', 'size': '37-41', 'quantity': 5, 'phone_number': '+380...'}
