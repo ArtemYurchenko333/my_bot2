@@ -126,13 +126,13 @@ async def ask_for_phone_number(update: Update, context: ContextTypes.DEFAULT_TYP
     # Визначаємо, чи це від callback_query (якщо перехід з іншого кроку) чи від message (після введення кількості)
     if update.callback_query:
         await update.callback_query.edit_message_text(
-            "Будь ласка, вкажіть ваш номер телефону:",
+            "Будь ласка, вкажіть ваш номер телефону (до 20 символів):",
             reply_markup=reply_markup
         )
         await update.callback_query.answer()
     else:
         await update.message.reply_text(
-            "Будь ласка, вкажіть ваш номер телефону:",
+            "Будь ласка, вкажіть ваш номер телефону (до 20 символів):",
             reply_markup=reply_markup
         )
     
@@ -147,10 +147,10 @@ async def handle_phone_number_input(update: Update, context: ContextTypes.DEFAUL
     phone_number = update.message.text.strip()
     user_id = update.effective_user.id
 
-    # Проста перевірка, що номер не порожній. Можна додати більш складну валідацію.
-    if not phone_number:
-        await update.message.reply_text("Будь ласка, введіть дійсний номер телефону.")
-        logger.warning(f"Пустий ввід номера телефону від {user_id}")
+    # Перевірка довжини номера телефону
+    if not phone_number or len(phone_number) > 20:
+        await update.message.reply_text("Будь ласка, введіть ваш номер телефону (до 20 символів).")
+        logger.warning(f"Невірний ввід номера телефону від {user_id}: {phone_number}")
         return
 
     user_selections[user_id]['phone_number'] = phone_number
@@ -308,10 +308,10 @@ def main() -> None:
 
     # Обробник текстових повідомлень для введення кількості
     # Важливо: цей обробник повинен бути перед загальним, якщо такий є.
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND & filters.ChatType.PRIVATE, handle_quantity_input))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND & filters.ChatType.PRIVATE & filters.User.private, handle_quantity_input))
 
     # Обробник текстових повідомлень для введення номера телефону
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND & filters.ChatType.PRIVATE, handle_phone_number_input))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND & filters.ChatType.PRIVATE & filters.User.private, handle_phone_number_input))
 
 
     # Обробники кнопок "Назад"
