@@ -11,7 +11,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Отримання токена бота з змінної оточення
-TOKEN = os.getenv("BOT_TOKEN") 
+TOKEN = os.getenv("BOT_TOKEN")
 
 # Словник для зберігання стану вибору користувача
 # Наприклад: user_data[user_id] = {'color': 'Кольорові', 'size': '37-41', 'quantity': 5, 'phone_number': '+380...'}
@@ -280,16 +280,14 @@ def main() -> None:
     application.add_handler(CallbackQueryHandler(ask_for_quantity, pattern="^select_size_"))
 
     # Обробник текстових повідомлень для введення кількості
-    # ВИПРАВЛЕННЯ: filters.PRIVATE_CHAT на filters.private
     application.add_handler(MessageHandler(
-        filters.TEXT & ~filters.COMMAND & filters.private & filters.User(lambda user: user.id in user_selections and context.user_data.get('awaiting_quantity')),
+        filters.TEXT & ~filters.COMMAND & filters.PRIVATE_CHAT & filters.User(lambda user: user.id in user_selections and context.user_data.get('awaiting_quantity')),
         handle_quantity_input)
     )
     
     # Обробник для отримання номера телефону (кнопка або ручне введення)
-    # ВИПРАВЛЕННЯ: filters.PRIVATE_CHAT на filters.private
     application.add_handler(MessageHandler(
-        (filters.CONTACT | filters.TEXT) & filters.private & filters.User(lambda user: user.id in user_selections and context.user_data.get('awaiting_phone_number')),
+        (filters.CONTACT | filters.TEXT) & filters.PRIVATE_CHAT & filters.User(lambda user: user.id in user_selections and context.user_data.get('awaiting_phone_number')),
         handle_phone_number_input)
     )
 
