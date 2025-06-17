@@ -61,7 +61,8 @@ async def send_size_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         [InlineKeyboardButton("1) 29-33", callback_data="select_size_29-33")],
         [InlineKeyboardButton("2) 34-36", callback_data="select_size_34-36")],
         [InlineKeyboardButton("3) 37-41", callback_data="select_size_37-41")],
-        [InlineKeyboardButton("4) 42-46", callback_data="select_size_42-46")],
+        [InlineKeyboardButton("4) Тільки для вас 47 розмір", callback_data="select_size_47")],
+        [InlineKeyboardButton("5) 42-46", callback_data="select_size_42-46")],
         [InlineKeyboardButton("⬅️ Назад до кольору", callback_data="back_to_color_selection")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -195,7 +196,8 @@ async def back_to_size_selection(update: Update, context: ContextTypes.DEFAULT_T
             [InlineKeyboardButton("1) 29-33", callback_data="select_size_29-33")],
             [InlineKeyboardButton("2) 34-36", callback_data="select_size_34-36")],
             [InlineKeyboardButton("3) 37-41", callback_data="select_size_37-41")],
-            [InlineKeyboardButton("4) 42-46", callback_data="select_size_42-46")],
+            [InlineKeyboardButton("4) Тільки для вас 47 розмір", callback_data="select_size_47")],
+            [InlineKeyboardButton("5) 42-46", callback_data="select_size_42-46")],
             [InlineKeyboardButton("⬅️ Назад до кольору", callback_data="back_to_color_selection")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
